@@ -39,6 +39,7 @@ const registerUser = async (req, res) => {
                 _id: user.id,
                 name: user.name,
                 email: user.email,
+                isAdmin: user.isAdmin,
                 token: generateToken(user._id)
             });
         } else {
@@ -74,4 +75,15 @@ const loginUser = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser };
+// @desc    Get all users (Admin only)
+// @route   GET /api/users
+const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({});
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { registerUser, loginUser, getAllUsers };

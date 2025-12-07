@@ -16,11 +16,16 @@ const Login = () => {
 
   useEffect(() => {
     if (isError) {
-      alert(message); // You can replace this with a toast notification later
+      alert(message);
     }
 
     if (isSuccess || user) {
-      navigate('/dashboard');
+      // Check if Admin
+      if (user && user.isAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     }
 
     dispatch(reset());
