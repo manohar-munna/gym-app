@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/users/';
+// Smart API URL: Works for both local dev and production
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/users/';
 
 // Get user token helper
 const getToken = (thunkAPI) => {
@@ -13,26 +14,26 @@ const getToken = (thunkAPI) => {
     };
 };
 
-// 1. GET ALL USERS
+// GET ALL USERS
 export const getUsers = createAsyncThunk('admin/getAll', async (_, thunkAPI) => {
     try {
         const config = getToken(thunkAPI);
         const response = await axios.get(API_URL, config);
         return response.data;
     } catch (error) {
-        const message = error.response && error.response.data && error.response.data.message || error.message;
+        const message = error.response?.data?.message || error.message;
         return thunkAPI.rejectWithValue(message);
     }
 });
 
-// 2. DELETE USER
+// DELETE USER
 export const deleteUser = createAsyncThunk('admin/delete', async (id, thunkAPI) => {
     try {
         const config = getToken(thunkAPI);
-        await axios.delete(API_URL + id, config);
-        return id; // Return the ID so we can remove it from the list immediately
+        await axios.delete(`${API_URL}${id}`, config);
+        return id;
     } catch (error) {
-        const message = error.response && error.response.data && error.response.data.message || error.message;
+        const message = error.response?.data?.message || error.message;
         return thunkAPI.rejectWithValue(message);
     }
 });
