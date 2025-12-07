@@ -9,6 +9,27 @@ const generateToken = (id) => {
 
 // @desc    Register new user
 // @route   POST /api/users
+// ... existing imports
+
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+const deleteUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+
+        if (user) {
+            await user.deleteOne();
+            res.json({ message: 'User removed' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Update exports
+
 const registerUser = async (req, res) => {
     try {
         const { name, email, password } = req.body;
@@ -86,4 +107,4 @@ const getAllUsers = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, getAllUsers };
+module.exports = { registerUser, loginUser, getAllUsers, deleteUser};

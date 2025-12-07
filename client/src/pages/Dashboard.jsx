@@ -21,37 +21,45 @@ const Dashboard = () => {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-gymBlack text-white p-10 pt-24">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold uppercase">
-          Welcome, <span className="text-gymGold">{user && user.name}</span>
-        </h1>
-        <button 
-          onClick={onLogout}
-          className="bg-red-600 px-4 py-2 rounded text-white font-bold hover:bg-red-700"
-        >
-          Logout
-        </button>
+    <div className="min-h-screen bg-gymBlack text-white p-6 md:p-10 pt-24">
+      
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-12 border-b border-gray-800 pb-8">
+        <div>
+          <h1 className="text-4xl font-black uppercase italic">
+            Welcome Back, <span className="text-gymGold">{user && user.name}</span>
+          </h1>
+          <p className="text-gray-400 mt-2">Member since: {user && new Date(user.createdAt).toLocaleDateString()}</p>
+        </div>
+        <div className="text-right hidden md:block">
+           <p className="text-sm text-gray-500">Registered Email</p>
+           <p className="font-bold">{user && user.email}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Widget 1 */}
-        <div className="bg-gymGray p-6 rounded-lg border-l-4 border-gymGold">
-          <h3 className="text-xl font-bold mb-2">My Plan</h3>
-          <p className="text-gray-400">No active plan</p>
-          <button className="mt-4 text-gymGold text-sm font-bold uppercase">Buy Membership →</button>
+        <div className="bg-[#111] p-8 rounded border-l-4 border-gymGold shadow-lg">
+          <h3 className="text-2xl font-bold mb-2 uppercase">Current Plan</h3>
+          <p className="text-gray-400 text-sm mb-4">You have no active subscription.</p>
+          <button className="w-full py-3 bg-gymGold text-black font-bold uppercase tracking-widest hover:bg-white transition-colors">
+            Buy Membership
+          </button>
         </div>
 
         {/* Widget 2 */}
-        <div className="bg-gymGray p-6 rounded-lg border-l-4 border-blue-500">
-          <h3 className="text-xl font-bold mb-2">Diet Plan</h3>
-          <p className="text-gray-400">Status: Pending</p>
+        <div className="bg-[#111] p-8 rounded border-l-4 border-blue-600 shadow-lg">
+          <h3 className="text-2xl font-bold mb-2 uppercase">Diet Plan</h3>
+          <p className="text-gray-400 text-sm">Your trainer has not assigned a diet yet.</p>
         </div>
 
         {/* Widget 3 */}
-        <div className="bg-gymGray p-6 rounded-lg border-l-4 border-green-500">
-          <h3 className="text-xl font-bold mb-2">Attendance</h3>
-          <p className="text-gray-400">0 Days Present</p>
+        <div className="bg-[#111] p-8 rounded border-l-4 border-green-600 shadow-lg">
+          <h3 className="text-2xl font-bold mb-2 uppercase">Attendance</h3>
+          <div className="flex items-end gap-2">
+             <span className="text-5xl font-black text-white">0</span>
+             <span className="text-gray-400 mb-2">days this month</span>
+          </div>
         </div>
       </div>
     </div>

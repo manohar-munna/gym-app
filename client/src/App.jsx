@@ -1,41 +1,47 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import AdminDashboard from './pages/AdminDashboard'; // <--- Import
+import AdminDashboard from './pages/AdminDashboard';
 import Preloader from './components/Preloader';
+import Navbar from './components/Navbar';
+import AdminRoute from './components/AdminRoute'; // <--- 1. IMPORT THIS
 
 function App() {
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
-    <Router>
-      {/* Show Preloader until animation finishes */}
-      {loading && <Preloader setComplete={() => setLoading(false)} />}
+    <>
+      {loading && location.pathname === '/' && <Preloader setComplete={() => setLoading(false)} />}
 
       <div className="bg-gymBlack min-h-screen text-white">
-        {/* Navbar */}
-        <nav className="fixed top-0 w-full p-6 flex justify-between items-center z-50 mix-blend-difference">
-          <Link to="/" className="text-2xl font-bold uppercase tracking-widest text-white cursor-pointer no-underline">
-            SWAMY<span className="text-gymGold">GYM</span>
-          </Link>
-          <div className="space-x-6 hidden md:block">
-            <Link to="/login" className="text-white hover:text-gymGold font-semibold transition-colors no-underline">LOGIN</Link>
-            <Link to="/register" className="text-white hover:text-gymGold font-semibold transition-colors no-underline">REGISTER</Link>
-          </div>
-        </nav>
+        
+        {!isAdminRoute && <Navbar />}
 
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin" element={<AdminDashboard />} /> {/* <--- Route Added */}
+          
+          {/* 2. PROTECT THIS ROUTE */}
+          <Route 
+            path="/admin" 
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            } 
+          />
+
         </Routes>
       </div>
-    </Router>
+    </>
   );
 }
 
