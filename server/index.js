@@ -1,7 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const connectDB = require('./config/db');
+const connectDB = require('./config/db'); // Path is now relative to api/
 const userRoutes = require('./routes/userRoutes');
 
 dotenv.config();
@@ -11,31 +11,29 @@ connectDB();
 
 const app = express();
 
-// CORS Configuration
+// CORS: Allow everything for Vercel
 app.use(cors({
-    origin: true, // Allow all origins (simplifies Vercel deployment)
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  origin: true,
+  credentials: true,
 }));
 
 app.use(express.json());
 
-// --- CRITICAL FIX FOR VERCEL 404s ---
-// Vercel sometimes strips the '/api' prefix, sometimes it keeps it.
-// We mount the routes on both paths to be 100% safe.
-app.use('/api/users', userRoutes);
-app.use('/users', userRoutes); 
-// ------------------------------------
-
+// --- ROUTES ---
 app.get('/', (req, res) => {
-    res.send('Swamy Gym API is running...');
+  res.send('API is running...');
 });
 
-// Export the app for Vercel Serverless
+// Mount routes
+// Vercel sometimes sends the request as /api/users or just /users depending on the rewrite
+app.use('/api/users', userRoutes);
+app.use('/users', userRoutes); 
+
+// Export the app for Vercel
 module.exports = app;
 
-// Only listen if running locally
+// Local Development: Run this if executed directly
 if (require.main === module) {
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
