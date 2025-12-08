@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use relative path. Vercel handles the routing.
-const API_URL = '/api/users/';
+// We are now hardcoding the local backend URL. No more production logic.
+const API_URL = 'http://localhost:5000/api/users/';
 
 // Register user
 const register = async (userData) => {
@@ -14,6 +14,7 @@ const register = async (userData) => {
 
 // Login user
 const login = async (userData) => {
+    // Correctly points to the login endpoint on the local server
     const response = await axios.post(`${API_URL}login`, userData);
     if (response.data) {
         localStorage.setItem('user', JSON.stringify(response.data));
