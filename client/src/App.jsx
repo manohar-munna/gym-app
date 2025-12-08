@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Preloader from './components/Preloader';
 import Navbar from './components/Navbar';
-import AdminRoute from './components/AdminRoute'; // <--- 1. IMPORT THIS
+import AdminRoute from './components/AdminRoute';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,6 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           
-          {/* 2. PROTECT THIS ROUTE */}
           <Route 
             path="/admin" 
             element={

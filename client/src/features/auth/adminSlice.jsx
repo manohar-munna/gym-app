@@ -1,8 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Smart API URL: Works for both local dev and production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/users/';
+// Smart URL Logic to switch between development and production
+const isProduction = process.env.NODE_ENV === 'production';
+const API_URL = isProduction
+    ? 'https://YOUR_BACKEND_URL.vercel.app/api/users/' // <-- ⚠️ PASTE YOUR LIVE BACKEND URL HERE
+    : 'http://localhost:5000/api/users/';
+
 
 // Get user token helper
 const getToken = (thunkAPI) => {
@@ -30,7 +34,7 @@ export const getUsers = createAsyncThunk('admin/getAll', async (_, thunkAPI) => 
 export const deleteUser = createAsyncThunk('admin/delete', async (id, thunkAPI) => {
     try {
         const config = getToken(thunkAPI);
-        await axios.delete(`${API_URL}${id}`, config);
+        await axios.delete(API_URL + id, config);
         return id;
     } catch (error) {
         const message = error.response?.data?.message || error.message;
@@ -55,7 +59,6 @@ const adminSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
-            // Get Users
             .addCase(getUsers.pending, (state) => { state.isLoading = true; })
             .addCase(getUsers.fulfilled, (state, action) => {
                 state.isLoading = false;
@@ -66,7 +69,6 @@ const adminSlice = createSlice({
                 state.isError = true;
                 state.message = action.payload;
             })
-            // Delete User
             .addCase(deleteUser.fulfilled, (state, action) => {
                 state.users = state.users.filter((user) => user._id !== action.payload);
             });
