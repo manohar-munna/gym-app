@@ -1,18 +1,14 @@
 {
-  "version": "2",
-  "builds": [
-    {
-      "src": "server/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "client/dist" }
-    }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/server/index.js" },
-    { "src": "/(.*)", "dest": "/client/dist/$1" }
-  ]
+  "name": "swamy-gym-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install-client": "cd client && npm install",
+    "install-server": "cd server && npm install",
+    "build-client": "cd client && npm run build",
+    "vercel-build": "npm run install-client && npm run install-server && npm run build-client"
+  },
+  "engines": {
+    "node": "20.x"
+  }
 }
