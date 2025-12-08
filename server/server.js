@@ -25,7 +25,8 @@ app.use((req, res, next) => {
 app.use('/api/users', userRoutes);
 
 app.get('/', (req, res) => {
-    res.send('Gym Pro API is running on Vercel...');
+    res.setHeader("Content-Type", "text/html"); // <--- Tells browser to display it
+    res.send("<h1>Gym Pro API is running on Vercel...</h1>");
 });
 
 // 2. EXPORT APP (Crucial for Vercel)
