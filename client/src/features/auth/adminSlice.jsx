@@ -4,7 +4,7 @@ import axios from 'axios';
 // Smart URL Logic to switch between development and production
 const isProduction = process.env.NODE_ENV === 'production';
 const API_URL = isProduction
-    ? 'https://YOUR_BACKEND_URL.vercel.app/api/users/' // <-- ⚠️ PASTE YOUR LIVE BACKEND URL HERE
+    ? 'https://gym-app-server-delta.vercel.app/api/users/' // <-- ⚠️ PASTE YOUR LIVE BACKEND URL HERE
     : 'http://localhost:5000/api/users/';
 
 
