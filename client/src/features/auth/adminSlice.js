@@ -1,51 +1,70 @@
 // src/features/auth/adminSlice.js
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import adminService from './adminService';
 import { logout } from './authSlice';
 
-// FETCH ALL USERS (ADMIN)
+// API base (relative for Vercel)
+const API_URL = '/api/users/';
+
+// FETCH ALL USERS (ADMIN ONLY)
 export const getUsers = createAsyncThunk(
   'admin/getUsers',
   async (_, thunkAPI) => {
     try {
       const token = thunkAPI.getState().auth.user.token;
-      return await adminService.getUsers(token);
+
+      const response = await fetch(API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+
+      return data;
     } catch (error) {
-      // Force logout if token invalid
-      if (error.message.includes('not authorized')) {
-        thunkAPI.dispatch(logout());
-      }
+      if (error.message.includes('not authorized')) thunkAPI.dispatch(logout());
       return thunkAPI.rejectWithValue(error.message);
     }
   }
 );
 
-// DELETE USER (ADMIN)
+// DELETE USER (ADMIN ONLY)
 export const deleteUser = createAsyncThunk(
   'admin/deleteUser',
   async (id, thunkAPI) => {
     try {
       const token = thunkAPI.getState().auth.user.token;
-      return await adminService.deleteUser(id, token);
+
+      const response = await fetch(API_URL + id, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+
+      return id;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.message);
     }
   }
 );
 
-const initialState = {
-  users: [],
-  isLoading: false,
-  isError: false,
-  message: '',
-};
-
 const adminSlice = createSlice({
   name: 'admin',
-  initialState,
+  initialState: {
+    users: [],
+    isLoading: false,
+    isError: false,
+    message: '',
+  },
   reducers: {
-    resetAdmin: (state) => initialState,
+    resetAdmin: () => ({
+      users: [],
+      isLoading: false,
+      isError: false,
+      message: '',
+    }),
   },
   extraReducers: (builder) => {
     builder
@@ -62,9 +81,7 @@ const adminSlice = createSlice({
         state.message = action.payload;
       })
       .addCase(deleteUser.fulfilled, (state, action) => {
-        state.users = state.users.filter(
-          (user) => user._id !== action.meta.arg
-        );
+        state.users = state.users.filter(u => u._id !== action.payload);
       });
   },
 });
