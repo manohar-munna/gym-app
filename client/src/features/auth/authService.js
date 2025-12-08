@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const API_URL = isProduction
-    ? 'https://swamy-gym-app.vercel.app/api/users/' // <-- MAKE SURE THIS IS YOUR REAL BACKEND URL
+    ? 'https://swamy-gym-app.vercel.app' // <-- MAKE SURE THIS IS YOUR REAL BACKEND URL
     : 'http://localhost:5000/api/users/';
 
 // ✅ USE THE FULL URL (This fixes the 404 Proxy issue)
