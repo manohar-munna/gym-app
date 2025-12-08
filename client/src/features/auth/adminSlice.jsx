@@ -1,12 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Smart URL Logic to switch between development and production
-const isProduction = process.env.NODE_ENV === 'production';
-const API_URL = isProduction
-    ? 'https://YOUR_BACKEND_URL.vercel.app/api/users/' // <-- ⚠️ PASTE YOUR LIVE BACKEND URL HERE
-    : 'http://localhost:5000/api/users/';
-
+// Use relative path for both Dev and Prod
+const API_URL = '/api/users/';
 
 // Get user token helper
 const getToken = (thunkAPI) => {
