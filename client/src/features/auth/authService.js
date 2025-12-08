@@ -1,34 +1,36 @@
-const API_URL = '/api/users/';
+import axios from 'axios';
+
+// We are now hardcoding the local backend URL. No more production logic.
+const API_URL = 'http://localhost:5000/api/users/';
 
 // Register user
 const register = async (userData) => {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message);
-  localStorage.setItem('user', JSON.stringify(data));
-  return data;
+    const response = await axios.post(API_URL, userData);
+    if (response.data) {
+        localStorage.setItem('user', JSON.stringify(response.data));
+    }
+    return response.data;
 };
 
 // Login user
 const login = async (userData) => {
-  const res = await fetch(API_URL + 'login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
-  });
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message);
-  localStorage.setItem('user', JSON.stringify(data));
-  return data;
+    // Correctly points to the login endpoint on the local server
+    const response = await axios.post(`${API_URL}login`, userData);
+    if (response.data) {
+        localStorage.setItem('user', JSON.stringify(response.data));
+    }
+    return response.data;
 };
 
 // Logout user
-const logout = () => localStorage.removeItem('user');
+const logout = () => {
+    localStorage.removeItem('user');
+};
 
-export default { register, login, logout };
+const authService = {
+    register,
+    logout,
+    login,
+};
+
+export default authService;
