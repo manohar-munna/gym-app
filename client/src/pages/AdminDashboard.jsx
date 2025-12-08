@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout, reset } from '../features/auth/authSlice';
-import { getUsers, deleteUser, resetAdmin } from '../features/auth/adminSlice'; // <--- New Imports
+import { getUsers, deleteUser, resetAdmin } from '../features/auth/adminReducer';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
