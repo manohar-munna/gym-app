@@ -12,17 +12,18 @@ const app = express();
 // Set up CORS for production
 // Vercel will set process.env.VERCEL_URL
 const allowedOrigins = process.env.VERCEL_URL ? [`https://swamy-gym-app.vercel.app`] : ['http://localhost:5173'];
+// ... inside server/server.js
+
 app.use(cors({
-  origin: function (origin, callback) {
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://swamy-gym-app.vercel.app" // <--- ADD YOUR LIVE FRONTEND URL HERE
+  ],
+  credentials: true
 }));
 
+// ... rest of the file
 app.use(express.json());
 
 // API Routes
