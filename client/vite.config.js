@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import React from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react'; // <--- Ensure this line matches exactly
 
 export default defineConfig({
   plugins: [react()],
