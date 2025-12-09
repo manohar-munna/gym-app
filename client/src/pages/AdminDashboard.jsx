@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout, reset } from '../features/auth/authSlice';
 import { getUsers, deleteUser, updateUser } from '../features/auth/adminReducer';
+import { motion, AnimatePresence } from 'framer-motion'; // <--- NEW IMPORT
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -11,7 +12,17 @@ const AdminDashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const { users, isLoading } = useSelector((state) => state.admin);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  // --- 1. PERSIST TAB STATE ---
+  // Check localStorage for the last active tab, default to 'overview'
+  const [activeTab, setActiveTab] = useState(() => {
+      return localStorage.getItem('adminActiveTab') || 'overview';
+  });
+
+  // Save to localStorage whenever it changes
+  useEffect(() => {
+      localStorage.setItem('adminActiveTab', activeTab);
+  }, [activeTab]);
+
   const [filter, setFilter] = useState('all');
   const [sortOption, setSortOption] = useState('expiry');
   const [customDays, setCustomDays] = useState('');
@@ -31,6 +42,7 @@ const AdminDashboard = () => {
   });
 
   useEffect(() => {
+    // Only fetch if we are on members tab and data is empty
     if (activeTab === 'members' && users.length === 0) {
       dispatch(getUsers());
     }
@@ -57,7 +69,7 @@ const AdminDashboard = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-GB'); // DD/MM/YYYY
+    return new Date(dateString).toLocaleDateString('en-GB'); 
   };
 
   const stats = useMemo(() => {
@@ -80,18 +92,16 @@ const AdminDashboard = () => {
 
   // --- FILTERING & SORTING ---
   const filteredUsers = users.filter(user => {
-    if (user.isAdmin) return false; // Hide Admins
+    if (user.isAdmin) return false; 
 
     const hasPlan = user.subscription && user.subscription.plan;
     const daysLeft = hasPlan ? getDaysLeft(user.subscription.endDate) : -999;
 
-    // 1. Tabs Logic
     if (filter === 'all') return true;
     if (filter === 'inactive') return !hasPlan;
-    if (filter === 'expired') return hasPlan && daysLeft < 0; // NEW EXPIRED FILTER
+    if (filter === 'expired') return hasPlan && daysLeft < 0;
     if (filter === 'expiring') return daysLeft >= 0 && daysLeft <= 5;
     
-    // 2. Custom Input
     if (customDays !== '') return daysLeft >= 0 && daysLeft <= parseInt(customDays);
 
     return user.subscription?.plan === filter;
@@ -153,10 +163,20 @@ const AdminDashboard = () => {
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
+  // --- FILTER TABS CONFIG ---
+  const filters = [
+      { id: 'all', label: 'All' },
+      { id: 'Strength', label: 'Strength' },
+      { id: 'Strength+Cardio', label: 'Str+Cardio' },
+      { id: 'expiring', label: '⚠️ Expiring' },
+      { id: 'expired', label: '🔴 Expired' },
+      { id: 'inactive', label: 'Inactive' }
+  ];
+
   return (
     <div className="h-screen bg-gymBlack flex flex-col md:flex-row text-white font-sans overflow-hidden">
       
-      {/* --- MOBILE HEADER --- */}
+      {/* MOBILE HEADER */}
       <div className="md:hidden bg-[#111] p-4 flex justify-between items-center border-b border-gray-800 flex-shrink-0">
         <h2 className="text-xl font-black uppercase tracking-wider text-white">
             Gym<span className="text-gymGold">Pro</span>
@@ -166,7 +186,7 @@ const AdminDashboard = () => {
         </button>
       </div>
 
-      {/* --- SIDEBAR --- */}
+      {/* SIDEBAR */}
       <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static w-64 bg-[#111] border-r border-gray-800 flex flex-col z-40 transition-transform duration-300 ease-in-out flex-shrink-0`}>
         <div className="p-6 border-b border-gray-800 hidden md:block">
           <h2 className="text-2xl font-black uppercase tracking-wider text-white">
@@ -182,10 +202,10 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* --- MAIN CONTENT --- */}
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-full min-w-0 bg-[#050505]">
         
-        {/* OVERVIEW TAB */}
+        {/* OVERVIEW VIEW */}
         {activeTab === 'overview' && (
           <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-fade-in">
             <h1 className="text-2xl md:text-3xl font-bold uppercase mb-6">Dashboard Overview</h1>
@@ -209,7 +229,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* MEMBERS TAB */}
+        {/* MEMBERS VIEW */}
         {activeTab === 'members' && (
           <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
             
@@ -217,22 +237,42 @@ const AdminDashboard = () => {
             <div className="bg-[#111] border-b border-gray-800 p-4 flex-shrink-0">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg md:text-xl font-bold">Manage Members</h3>
+                  
+                  {/* ANIMATED SYNC BUTTON */}
                   <button 
                     onClick={() => dispatch(getUsers())} 
                     className="flex items-center gap-2 text-xs font-bold text-gymGold border border-gymGold px-3 py-1.5 hover:bg-gymGold hover:text-black transition rounded uppercase"
                   >
+                    {/* Spin animation class added when loading */}
                     <span className={`text-sm ${isLoading ? 'animate-spin' : ''}`}>↻</span> 
                     {isLoading ? 'Syncing...' : 'Sync Data'}
                   </button>
               </div>
 
-              {/* FILTERS */}
+              {/* FILTERS & SORT */}
               <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
-                <div className="flex space-x-1 bg-gray-900 p-1 rounded overflow-x-auto w-full md:w-auto no-scrollbar">
-                    {['all', 'Strength', 'Strength+Cardio', 'expiring', 'expired', 'inactive'].map((f) => (
-                        <button key={f} onClick={() => { setFilter(f); setCustomDays(''); }} 
-                            className={`px-3 py-1.5 text-xs rounded uppercase font-bold whitespace-nowrap transition-all ${filter === f && customDays === '' ? 'bg-gymGold text-black' : 'text-gray-400 hover:text-white'}`}>
-                            {f === 'expiring' ? '⚠️ Expiring' : f === 'expired' ? '🔴 Expired' : f}
+                
+                {/* --- 2. SMOOTH SLIDING TABS --- */}
+                <div className="flex space-x-1 bg-gray-900 p-1 rounded overflow-x-auto w-full md:w-auto no-scrollbar relative">
+                    {filters.map((f) => (
+                        <button 
+                            key={f.id} 
+                            onClick={() => { setFilter(f.id); setCustomDays(''); }} 
+                            className="relative px-3 py-1.5 text-xs rounded uppercase font-bold whitespace-nowrap transition-all z-10"
+                        >
+                            {/* Sliding Background */}
+                            {filter === f.id && customDays === '' && (
+                                <motion.div 
+                                    layoutId="activeFilter" 
+                                    className="absolute inset-0 bg-gymGold rounded shadow-md"
+                                    initial={false}
+                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                />
+                            )}
+                            {/* Text Color Logic */}
+                            <span className={`relative z-20 ${filter === f.id && customDays === '' ? 'text-black' : 'text-gray-400 hover:text-white'}`}>
+                                {f.label}
+                            </span>
                         </button>
                     ))}
                 </div>
@@ -254,23 +294,27 @@ const AdminDashboard = () => {
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto bg-[#0a0a0a]">
                 
-                {/* --- 1. RUNNING MAN LOADER --- */}
+                {/* --- 4. ANIMATED LOADING SCREEN (The Running Man) --- */}
                 {isLoading ? (
                     <div className="h-full flex flex-col items-center justify-center space-y-4">
-                        {/* CSS Treadmill Runner Animation */}
                         <div className="runner-container">
-                            <div className="runner">🏃‍♂️</div>
+                            <div className="runner text-6xl">🏃‍♂️</div>
                         </div>
-                        <p className="text-gymGold font-bold animate-pulse">Loading Athletes...</p>
+                        <p className="text-gymGold font-bold animate-pulse">Syncing Database...</p>
                         <style>{`
-                            .runner { font-size: 4rem; animation: run 0.5s infinite alternate; }
-                            @keyframes run { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+                            .runner { animation: run 0.6s infinite alternate ease-in-out; }
+                            @keyframes run { from { transform: translateY(0); } to { transform: translateY(-15px); } }
                         `}</style>
                     </div>
                 ) : filteredUsers.length === 0 ? (
                     <div className="p-10 text-center text-gray-500 italic mt-10">No members match your filter.</div>
                 ) : (
-                    <>
+                    /* --- 3. ANIMATED LIST ENTRY --- */
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
                         {/* DESKTOP TABLE */}
                         <div className="hidden md:block">
                             <table className="w-full text-left text-gray-400 whitespace-nowrap">
@@ -286,10 +330,32 @@ const AdminDashboard = () => {
                                 </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-800">
-                                {filteredUsers.map((member) => (
-                                    <MemberRow 
+                                <AnimatePresence>
+                                    {filteredUsers.map((member, i) => (
+                                        <MemberRow 
+                                            key={member._id} 
+                                            member={member} 
+                                            index={i} 
+                                            formatDate={formatDate} 
+                                            getDaysLeft={getDaysLeft}
+                                            handleEditClick={handleEditClick}
+                                            handleDelete={handleDelete}
+                                            sendWhatsApp={sendWhatsApp}
+                                        />
+                                    ))}
+                                </AnimatePresence>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* MOBILE CARDS */}
+                        <div className="md:hidden p-4 space-y-3">
+                            <AnimatePresence>
+                                {filteredUsers.map((member, i) => (
+                                    <MemberCard 
                                         key={member._id} 
                                         member={member} 
+                                        index={i}
                                         formatDate={formatDate} 
                                         getDaysLeft={getDaysLeft}
                                         handleEditClick={handleEditClick}
@@ -297,25 +363,9 @@ const AdminDashboard = () => {
                                         sendWhatsApp={sendWhatsApp}
                                     />
                                 ))}
-                                </tbody>
-                            </table>
+                            </AnimatePresence>
                         </div>
-
-                        {/* MOBILE CARDS */}
-                        <div className="md:hidden p-4 space-y-3">
-                            {filteredUsers.map((member) => (
-                                <MemberCard 
-                                    key={member._id} 
-                                    member={member} 
-                                    formatDate={formatDate} 
-                                    getDaysLeft={getDaysLeft}
-                                    handleEditClick={handleEditClick}
-                                    handleDelete={handleDelete}
-                                    sendWhatsApp={sendWhatsApp}
-                                />
-                            ))}
-                        </div>
-                    </>
+                    </motion.div>
                 )}
                 
                 <div className="h-20"></div>
@@ -334,16 +384,20 @@ const AdminDashboard = () => {
                   </div>
                   
                   <div className="space-y-4">
+                      {/* Name */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Name</label>
                           <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none" />
                       </div>
+                      
+                      {/* Phone */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">WhatsApp</label>
                           <input type="number" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none" />
                       </div>
+
                       <div className="grid grid-cols-3 gap-2">
                           <div className="col-span-2">
                             <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Plan</label>
@@ -361,11 +415,13 @@ const AdminDashboard = () => {
                             </select>
                           </div>
                       </div>
+
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Start Date</label>
                           <input type="date" value={formData.startDate} onChange={handleDateChange}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none [color-scheme:dark]" />
                       </div>
+
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">End Date (Auto)</label>
                           <input type="date" value={formData.endDate} readOnly
@@ -384,12 +440,11 @@ const AdminDashboard = () => {
   );
 };
 
-// --- DESKTOP ROW ---
-const MemberRow = ({ member, formatDate, getDaysLeft, handleEditClick, handleDelete, sendWhatsApp }) => {
+// --- DESKTOP ROW (Now with Animation) ---
+const MemberRow = ({ member, index, formatDate, getDaysLeft, handleEditClick, handleDelete, sendWhatsApp }) => {
     const hasPlan = member.subscription && member.subscription.plan;
     const daysLeft = hasPlan ? getDaysLeft(member.subscription.endDate) : -999;
     
-    // Status Logic
     let statusBadge;
     if (!hasPlan) statusBadge = <Badge color="gray" text="INACTIVE" />;
     else if (daysLeft < 0) statusBadge = <Badge color="red" text="EXPIRED" />;
@@ -397,7 +452,12 @@ const MemberRow = ({ member, formatDate, getDaysLeft, handleEditClick, handleDel
     else statusBadge = <Badge color="green" text="ACTIVE" />;
 
     return (
-        <tr className="hover:bg-gray-900/50 transition-colors border-b border-gray-800/50">
+        <motion.tr 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }} // Stagger effect
+            className="hover:bg-gray-900/50 transition-colors border-b border-gray-800/50"
+        >
             <td className="p-4">
                 <div className="font-bold text-white">{member.name}</div>
                 <div className="text-xs text-gray-500 mt-1">📞 {member.profile?.phone || "-"}</div>
@@ -423,12 +483,12 @@ const MemberRow = ({ member, formatDate, getDaysLeft, handleEditClick, handleDel
                 <button onClick={() => handleEditClick(member)} className="text-gymGold font-bold text-sm mr-3">Edit</button>
                 <button onClick={() => handleDelete(member._id)} className="text-red-500 font-bold text-sm">Del</button>
             </td>
-        </tr>
+        </motion.tr>
     );
 };
 
-// --- MOBILE CARD ---
-const MemberCard = ({ member, formatDate, getDaysLeft, handleEditClick, handleDelete, sendWhatsApp }) => {
+// --- MOBILE CARD (Now with Animation) ---
+const MemberCard = ({ member, index, formatDate, getDaysLeft, handleEditClick, handleDelete, sendWhatsApp }) => {
     const hasPlan = member.subscription && member.subscription.plan;
     const daysLeft = hasPlan ? getDaysLeft(member.subscription.endDate) : -999;
 
@@ -439,7 +499,12 @@ const MemberCard = ({ member, formatDate, getDaysLeft, handleEditClick, handleDe
     else statusBadge = <Badge color="green" text="ACTIVE" />;
 
     return (
-        <div className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800 shadow-md flex flex-col gap-3">
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: index * 0.05 }}
+            className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800 shadow-md flex flex-col gap-3"
+        >
             <div className="flex justify-between items-start">
                 <div>
                     <h3 className="text-lg font-bold text-white">{member.name}</h3>
@@ -479,7 +544,7 @@ const MemberCard = ({ member, formatDate, getDaysLeft, handleEditClick, handleDe
                     🗑
                 </button>
             </div>
-        </div>
+        </motion.div>
     );
 };
 
