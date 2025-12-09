@@ -17,15 +17,20 @@ const updateUserByAdmin = async (req, res) => {
         const user = await User.findById(req.params.id);
 
         if (user) {
-            // Update Phone if provided
+            // 1. Update Name (NEW)
+            if (req.body.name) {
+                user.name = req.body.name;
+            }
+
+            // 2. Update Phone
             if (req.body.phone) {
                 user.profile = { ...user.profile, phone: req.body.phone };
             }
 
-            // Update Subscription if provided
+            // 3. Update Subscription
             if (req.body.plan) {
                 user.subscription = {
-                    plan: req.body.plan, // 'Strength' or 'Cardio'
+                    plan: req.body.plan, 
                     startDate: req.body.startDate,
                     endDate: req.body.endDate,
                     status: 'Active'
@@ -49,7 +54,6 @@ const updateUserByAdmin = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
-
 // @desc    Delete user
 // @route   DELETE /api/users/:id
 const deleteUser = async (req, res) => {
