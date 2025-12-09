@@ -10,6 +10,45 @@ const generateToken = (id) => {
 // @desc    Register new user
 // @route   POST /api/users
 // ... existing imports
+// @desc    Update User Subscription & Profile (Admin)
+// @route   PUT /api/users/:id
+const updateUserByAdmin = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+
+        if (user) {
+            // Update Phone if provided
+            if (req.body.phone) {
+                user.profile = { ...user.profile, phone: req.body.phone };
+            }
+
+            // Update Subscription if provided
+            if (req.body.plan) {
+                user.subscription = {
+                    plan: req.body.plan, // 'Strength' or 'Cardio'
+                    startDate: req.body.startDate,
+                    endDate: req.body.endDate,
+                    status: 'Active'
+                };
+            }
+
+            const updatedUser = await user.save();
+            
+            res.json({
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                isAdmin: updatedUser.isAdmin,
+                subscription: updatedUser.subscription,
+                profile: updatedUser.profile
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 // @desc    Delete user
 // @route   DELETE /api/users/:id
@@ -107,4 +146,4 @@ const getAllUsers = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, getAllUsers, deleteUser};
+module.exports = { registerUser, loginUser, getAllUsers, deleteUser, updateUserByAdmin };
