@@ -209,18 +209,16 @@ const AdminDashboard = () => {
 
                                 <div className="flex gap-2 w-full md:w-auto items-center">
                                     <input
-                                        type="text" // Change to text to allow spaces and remove spinners
-                                        inputMode="numeric" // Shows number pad on mobile
-                                        value={formData.phone}
+                                        type="number"
+                                        value={customDays}
                                         onChange={(e) => {
-                                            let val = e.target.value.replace(/\D/g, ''); // Digits only
-                                            if (val.length > 10) val = val.slice(0, 10);
-                                            if (val.length > 5) val = `${val.slice(0, 5)} ${val.slice(5)}`; // Add space
-                                            setFormData({ ...formData, phone: val });
+                                            setFilter("");  // clear existing filters
+                                            setCustomDays(e.target.value);
                                         }}
-                                        className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none"
-                                        placeholder="98765 43210"
+                                        className="w-28 bg-black border border-gray-700 text-white p-2 rounded text-center focus:border-gymGold outline-none"
+                                        placeholder="Days ≤"
                                     />
+
 
                                     {/* CUSTOM ANIMATED SORT DROPDOWN */}
                                     <CustomSortDropdown current={sortOption} onChange={setSortOption} />
