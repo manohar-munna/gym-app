@@ -31,7 +31,6 @@ const AdminDashboard = () => {
   });
 
   useEffect(() => {
-    // Initial Load
     if (activeTab === 'members' && users.length === 0) {
       dispatch(getUsers());
     }
@@ -65,7 +64,6 @@ const AdminDashboard = () => {
     let revenue = 0;
     let active = 0;
     let expiring = 0;
-    // Calculate stats only for NON-ADMIN users
     const memberList = users.filter(u => !u.isAdmin);
     
     memberList.forEach(u => {
@@ -82,23 +80,22 @@ const AdminDashboard = () => {
 
   // --- FILTERING & SORTING ---
   const filteredUsers = users.filter(user => {
-    // 1. REMOVE ADMINS FROM LIST
-    if (user.isAdmin) return false;
+    if (user.isAdmin) return false; // Hide Admins
 
-    // 2. Filter Tabs
+    const hasPlan = user.subscription && user.subscription.plan;
+    const daysLeft = hasPlan ? getDaysLeft(user.subscription.endDate) : -999;
+
+    // 1. Tabs Logic
     if (filter === 'all') return true;
-    if (filter === 'inactive') return !user.subscription || !user.subscription.plan;
-    if (filter === 'expiring') {
-        const days = getDaysLeft(user.subscription?.endDate);
-        return days >= 0 && days <= 5;
-    }
-    if (customDays !== '') {
-        const days = getDaysLeft(user.subscription?.endDate);
-        return days >= 0 && days <= parseInt(customDays);
-    }
+    if (filter === 'inactive') return !hasPlan;
+    if (filter === 'expired') return hasPlan && daysLeft < 0; // NEW EXPIRED FILTER
+    if (filter === 'expiring') return daysLeft >= 0 && daysLeft <= 5;
+    
+    // 2. Custom Input
+    if (customDays !== '') return daysLeft >= 0 && daysLeft <= parseInt(customDays);
+
     return user.subscription?.plan === filter;
   }).sort((a, b) => {
-      // 3. Sorting
       if (sortOption === 'name') return a.name.localeCompare(b.name);
       if (sortOption === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
       
@@ -152,12 +149,11 @@ const AdminDashboard = () => {
     const planName = member.subscription?.plan || "Membership";
     const expiryDate = formatDate(member.subscription?.endDate);
     const daysLeft = getDaysLeft(member.subscription?.endDate);
-    const message = `Hello ${member.name}, reminder from Swamy Gym. Your ${planName} expires in *${daysLeft} days* (${expiryDate}). Please renew! 💪`;
+    const message = `Hello ${member.name}, reminder from Swamy Gym. Your ${planName} expires in *${daysLeft} days* on ${expiryDate}. Please renew! 💪`;
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
-    // FIX: h-screen and overflow-hidden on the main container prevents body scrolling
     <div className="h-screen bg-gymBlack flex flex-col md:flex-row text-white font-sans overflow-hidden">
       
       {/* --- MOBILE HEADER --- */}
@@ -186,10 +182,10 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* --- MAIN CONTENT AREA (Scrollable) --- */}
+      {/* --- MAIN CONTENT --- */}
       <div className="flex-1 flex flex-col h-full min-w-0 bg-[#050505]">
         
-        {/* OVERVIEW VIEW */}
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-fade-in">
             <h1 className="text-2xl md:text-3xl font-bold uppercase mb-6">Dashboard Overview</h1>
@@ -213,15 +209,14 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* MEMBERS VIEW */}
+        {/* MEMBERS TAB */}
         {activeTab === 'members' && (
           <div className="flex-1 flex flex-col overflow-hidden animate-fade-in">
             
-            {/* FIXED HEADER (Filters/Sync) */}
+            {/* HEADER */}
             <div className="bg-[#111] border-b border-gray-800 p-4 flex-shrink-0">
               <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg md:text-xl font-bold">Manage Members</h3>
-                  {/* ANIMATED SYNC BUTTON */}
                   <button 
                     onClick={() => dispatch(getUsers())} 
                     className="flex items-center gap-2 text-xs font-bold text-gymGold border border-gymGold px-3 py-1.5 hover:bg-gymGold hover:text-black transition rounded uppercase"
@@ -231,13 +226,13 @@ const AdminDashboard = () => {
                   </button>
               </div>
 
-              {/* Improved Filter Bar */}
+              {/* FILTERS */}
               <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
                 <div className="flex space-x-1 bg-gray-900 p-1 rounded overflow-x-auto w-full md:w-auto no-scrollbar">
-                    {['all', 'Strength', 'Strength+Cardio', 'expiring', 'inactive'].map((f) => (
+                    {['all', 'Strength', 'Strength+Cardio', 'expiring', 'expired', 'inactive'].map((f) => (
                         <button key={f} onClick={() => { setFilter(f); setCustomDays(''); }} 
                             className={`px-3 py-1.5 text-xs rounded uppercase font-bold whitespace-nowrap transition-all ${filter === f && customDays === '' ? 'bg-gymGold text-black' : 'text-gray-400 hover:text-white'}`}>
-                            {f === 'expiring' ? '⚠️ Expiring (5d)' : f}
+                            {f === 'expiring' ? '⚠️ Expiring' : f === 'expired' ? '🔴 Expired' : f}
                         </button>
                     ))}
                 </div>
@@ -256,56 +251,73 @@ const AdminDashboard = () => {
               </div>
             </div>
             
-            {/* SCROLLABLE LIST AREA */}
-            <div className="flex-1 overflow-y-auto bg-[#0a0a0a] p-0 md:p-0">
+            {/* CONTENT AREA */}
+            <div className="flex-1 overflow-y-auto bg-[#0a0a0a]">
                 
-                {/* Desktop Table */}
-                <div className="hidden md:block">
-                    <table className="w-full text-left text-gray-400 whitespace-nowrap">
-                        <thead className="bg-[#151515] text-gray-500 uppercase text-xs font-bold tracking-wider sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            <th className="p-4 bg-[#151515]">Name / Contact</th>
-                            <th className="p-4 bg-[#151515]">Plan</th>
-                            <th className="p-4 bg-[#151515]">Validity (Start → End)</th>
-                            <th className="p-4 bg-[#151515]">Status</th>
-                            <th className="p-4 bg-[#151515]">Notify</th>
-                            <th className="p-4 bg-[#151515]">Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800">
-                        {filteredUsers.map((member) => (
-                            <MemberRow 
-                                key={member._id} 
-                                member={member} 
-                                formatDate={formatDate} 
-                                getDaysLeft={getDaysLeft}
-                                handleEditClick={handleEditClick}
-                                handleDelete={handleDelete}
-                                sendWhatsApp={sendWhatsApp}
-                            />
-                        ))}
-                        </tbody>
-                    </table>
-                </div>
+                {/* --- 1. RUNNING MAN LOADER --- */}
+                {isLoading ? (
+                    <div className="h-full flex flex-col items-center justify-center space-y-4">
+                        {/* CSS Treadmill Runner Animation */}
+                        <div className="runner-container">
+                            <div className="runner">🏃‍♂️</div>
+                        </div>
+                        <p className="text-gymGold font-bold animate-pulse">Loading Athletes...</p>
+                        <style>{`
+                            .runner { font-size: 4rem; animation: run 0.5s infinite alternate; }
+                            @keyframes run { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+                        `}</style>
+                    </div>
+                ) : filteredUsers.length === 0 ? (
+                    <div className="p-10 text-center text-gray-500 italic mt-10">No members match your filter.</div>
+                ) : (
+                    <>
+                        {/* DESKTOP TABLE */}
+                        <div className="hidden md:block">
+                            <table className="w-full text-left text-gray-400 whitespace-nowrap">
+                                <thead className="bg-[#151515] text-gray-500 uppercase text-xs font-bold tracking-wider sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th className="p-4 bg-[#151515]">Name / Contact</th>
+                                    <th className="p-4 bg-[#151515]">Plan</th>
+                                    <th className="p-4 bg-[#151515]">Validity (Start → End)</th>
+                                    <th className="p-4 bg-[#151515]">Status</th>
+                                    <th className="p-4 bg-[#151515]">Days Active</th>
+                                    <th className="p-4 bg-[#151515]">Notify</th>
+                                    <th className="p-4 bg-[#151515]">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-800">
+                                {filteredUsers.map((member) => (
+                                    <MemberRow 
+                                        key={member._id} 
+                                        member={member} 
+                                        formatDate={formatDate} 
+                                        getDaysLeft={getDaysLeft}
+                                        handleEditClick={handleEditClick}
+                                        handleDelete={handleDelete}
+                                        sendWhatsApp={sendWhatsApp}
+                                    />
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                {/* Mobile Cards */}
-                <div className="md:hidden p-4 space-y-3">
-                    {filteredUsers.map((member) => (
-                        <MemberCard 
-                            key={member._id} 
-                            member={member} 
-                            formatDate={formatDate} 
-                            getDaysLeft={getDaysLeft}
-                            handleEditClick={handleEditClick}
-                            handleDelete={handleDelete}
-                            sendWhatsApp={sendWhatsApp}
-                        />
-                    ))}
-                </div>
-
-                {filteredUsers.length === 0 && <div className="p-10 text-center text-gray-500 italic mt-10">No members found.</div>}
+                        {/* MOBILE CARDS */}
+                        <div className="md:hidden p-4 space-y-3">
+                            {filteredUsers.map((member) => (
+                                <MemberCard 
+                                    key={member._id} 
+                                    member={member} 
+                                    formatDate={formatDate} 
+                                    getDaysLeft={getDaysLeft}
+                                    handleEditClick={handleEditClick}
+                                    handleDelete={handleDelete}
+                                    sendWhatsApp={sendWhatsApp}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
                 
-                {/* Spacer for bottom scrolling */}
                 <div className="h-20"></div>
             </div>
           </div>
@@ -322,20 +334,16 @@ const AdminDashboard = () => {
                   </div>
                   
                   <div className="space-y-4">
-                      {/* Name */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Name</label>
                           <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none" />
                       </div>
-                      
-                      {/* Phone */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">WhatsApp</label>
                           <input type="number" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none" />
                       </div>
-
                       <div className="grid grid-cols-3 gap-2">
                           <div className="col-span-2">
                             <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Plan</label>
@@ -353,15 +361,11 @@ const AdminDashboard = () => {
                             </select>
                           </div>
                       </div>
-
-                      {/* Start Date */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">Start Date</label>
                           <input type="date" value={formData.startDate} onChange={handleDateChange}
                               className="w-full bg-black border border-gray-700 text-white p-3 rounded focus:border-gymGold outline-none [color-scheme:dark]" />
                       </div>
-
-                      {/* End Date */}
                       <div>
                           <label className="text-xs uppercase font-bold text-gray-500 mb-1 block">End Date (Auto)</label>
                           <input type="date" value={formData.endDate} readOnly
@@ -384,6 +388,14 @@ const AdminDashboard = () => {
 const MemberRow = ({ member, formatDate, getDaysLeft, handleEditClick, handleDelete, sendWhatsApp }) => {
     const hasPlan = member.subscription && member.subscription.plan;
     const daysLeft = hasPlan ? getDaysLeft(member.subscription.endDate) : -999;
+    
+    // Status Logic
+    let statusBadge;
+    if (!hasPlan) statusBadge = <Badge color="gray" text="INACTIVE" />;
+    else if (daysLeft < 0) statusBadge = <Badge color="red" text="EXPIRED" />;
+    else if (daysLeft <= 5) statusBadge = <Badge color="orange" text="EXPIRING" />;
+    else statusBadge = <Badge color="green" text="ACTIVE" />;
+
     return (
         <tr className="hover:bg-gray-900/50 transition-colors border-b border-gray-800/50">
             <td className="p-4">
@@ -394,21 +406,16 @@ const MemberRow = ({ member, formatDate, getDaysLeft, handleEditClick, handleDel
                 {hasPlan ? <span className="text-white font-bold">{member.subscription.plan}</span> : <span className="text-gray-600 italic">No Plan</span>}
             </td>
             <td className="p-4 text-sm font-mono text-gray-300">
-               {/* SHOWING BOTH DATES HERE */}
                {hasPlan ? (
-                   <span className="flex items-center gap-2">
+                   <span className="flex items-center gap-2 text-xs">
                        <span className="text-emerald-500">{formatDate(member.subscription.startDate)}</span> 
                        <span className="text-gray-600">→</span>
                        <span className="text-rose-500">{formatDate(member.subscription.endDate)}</span>
                    </span>
                ) : '-'}
             </td>
-            <td className="p-4">
-                {!hasPlan ? <Badge color="gray" text="INACTIVE" /> :
-                 daysLeft < 0 ? <Badge color="red" text="EXPIRED" /> :
-                 daysLeft <= 5 ? <Badge color="orange" text={`EXPIRING (${daysLeft}d)`} /> :
-                 <Badge color="green" text={`ACTIVE (${daysLeft}d)`} />}
-            </td>
+            <td className="p-4">{statusBadge}</td>
+            <td className="p-4 text-center font-bold text-white">{daysLeft > 0 ? `${daysLeft} days` : '-'}</td>
             <td className="p-4">
                 <button onClick={() => sendWhatsApp(member)} className="text-green-500 hover:scale-110 transition text-2xl"><i className="fa-brands fa-whatsapp"></i> 💬</button>
             </td>
@@ -425,6 +432,12 @@ const MemberCard = ({ member, formatDate, getDaysLeft, handleEditClick, handleDe
     const hasPlan = member.subscription && member.subscription.plan;
     const daysLeft = hasPlan ? getDaysLeft(member.subscription.endDate) : -999;
 
+    let statusBadge;
+    if (!hasPlan) statusBadge = <Badge color="gray" text="INACTIVE" />;
+    else if (daysLeft < 0) statusBadge = <Badge color="red" text="EXPIRED" />;
+    else if (daysLeft <= 5) statusBadge = <Badge color="orange" text="EXPIRING" />;
+    else statusBadge = <Badge color="green" text="ACTIVE" />;
+
     return (
         <div className="bg-[#1a1a1a] p-4 rounded-xl border border-gray-800 shadow-md flex flex-col gap-3">
             <div className="flex justify-between items-start">
@@ -432,26 +445,27 @@ const MemberCard = ({ member, formatDate, getDaysLeft, handleEditClick, handleDe
                     <h3 className="text-lg font-bold text-white">{member.name}</h3>
                     <p className="text-xs text-gray-500">📞 {member.profile?.phone || "No Phone"}</p>
                 </div>
-                {!hasPlan ? <Badge color="gray" text="INACTIVE" /> :
-                 daysLeft < 0 ? <Badge color="red" text="EXPIRED" /> :
-                 daysLeft <= 5 ? <Badge color="orange" text={`EXPIRING (${daysLeft}d)`} /> :
-                 <Badge color="green" text={`ACTIVE (${daysLeft}d)`} />}
+                {statusBadge}
             </div>
 
             <div className="bg-black/40 p-3 rounded-lg border border-gray-800 text-sm">
                 {hasPlan ? (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-2">
                         <div className="flex justify-between">
                             <span className="text-gray-400">Plan:</span>
                             <span className="text-white font-bold">{member.subscription.plan}</span>
                         </div>
-                        <div className="flex justify-between border-t border-white/10 pt-1 mt-1">
-                            <span className="text-emerald-500">{formatDate(member.subscription.startDate)}</span>
-                            <span className="text-gray-500">→</span>
-                            <span className="text-rose-500">{formatDate(member.subscription.endDate)}</span>
+                        <div className="flex justify-between">
+                            <span className="text-gray-400">Days Active:</span>
+                            <span className="text-gymGold font-bold">{daysLeft > 0 ? daysLeft : 0} days</span>
+                        </div>
+                        <div className="flex justify-between border-t border-white/10 pt-2 mt-1">
+                            <span className="text-emerald-500 text-xs">{formatDate(member.subscription.startDate)}</span>
+                            <span className="text-gray-500 text-xs">→</span>
+                            <span className="text-rose-500 text-xs">{formatDate(member.subscription.endDate)}</span>
                         </div>
                     </div>
-                ) : <span className="text-gray-600 italic">No active plan</span>}
+                ) : <span className="text-gray-600 italic text-sm">No active plan</span>}
             </div>
 
             <div className="flex gap-2 mt-1">
