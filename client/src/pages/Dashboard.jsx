@@ -4,9 +4,9 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logout, reset } from '../features/auth/authSlice';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-// Imported directly to avoid Context conflicts
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
+// --- CONFIG ---
 const DEFAULT_TASKS = [
     { name: 'Warmup', completed: false, reps: '', weight: '' },
     { name: 'Main Lift', completed: false, reps: '', weight: '' },
@@ -14,92 +14,56 @@ const DEFAULT_TASKS = [
     { name: 'Cool down', completed: false, reps: '', weight: '' },
 ];
 
-// --- HELPER: DATA AGGREGATION LOGIC ---
+// --- GRAPH HELPER ---
 const processGraphData = (activities, metric, range) => {
-    const rawPoints = [];
-    const sortedDates = Object.keys(activities).sort();
+    const rawData = [];
+    const dates = Object.keys(activities).sort();
 
-    // 1. Extract valid data points
-    sortedDates.forEach(dateKey => {
-        const log = activities[dateKey];
+    // 1. Extract Raw Data
+    dates.forEach(date => {
+        const log = activities[date];
         let val = null;
-
+        
         if (metric === 'bodyWeight') {
-            if (log.bodyWeight) val = Number(log.bodyWeight);
+            if (log.bodyWeight) val = log.bodyWeight;
         } else {
-            // Find max weight lifted for a specific exercise in that day
             const task = log.tasks?.find(t => t.name.toLowerCase().includes(metric.toLowerCase()));
             if (task && task.weight) val = parseFloat(task.weight);
         }
 
-        if (val !== null && !isNaN(val)) {
-            rawPoints.push({ date: dateKey, value: val });
-        }
+        if (val !== null) rawData.push({ date, value: val });
     });
 
     if (range === 'daily') {
-        // Return raw data formatted as MM/DD
-        return rawPoints.map(p => ({
-            date: p.date.split('-').slice(1).join('/'),
-            value: p.value
-        }));
+        return rawData.map(d => ({ ...d, date: d.date.slice(5).replace('-','/') })); // MM/DD
     }
 
-    // 2. Grouping Logic (Weekly / Monthly)
+    // 2. Grouping Logic (Weekly/Monthly)
     const grouped = {};
-    
-    rawPoints.forEach(point => {
-        const d = new Date(point.date);
+    rawData.forEach(item => {
+        const d = new Date(item.date);
         let key;
-
         if (range === 'weekly') {
-            // Get the Monday of the week
-            const day = d.getDay(),
-                diff = d.getDate() - day + (day === 0 ? -6 : 1); 
-            const monday = new Date(d.setDate(diff));
-            key = `${monday.getDate()}/${monday.getMonth()+1}`; // Format: DD/M
+            // Calculate Week Number
+            const firstDay = new Date(d.getFullYear(), 0, 1);
+            const pastDays = (d - firstDay) / 86400000;
+            const weekNum = Math.ceil((pastDays + firstDay.getDay() + 1) / 7);
+            key = `W${weekNum}`;
         } else {
-            // Monthly
-            key = d.toLocaleString('default', { month: 'short', year: '2-digit' }); // Jan 24
+            // Monthly (Jan, Feb...)
+            key = d.toLocaleString('default', { month: 'short' });
         }
 
-        if (!grouped[key]) grouped[key] = { sum: 0, count: 0 };
-        grouped[key].sum += point.value;
+        if (!grouped[key]) grouped[key] = { total: 0, count: 0 };
+        grouped[key].total += item.value;
         grouped[key].count += 1;
     });
 
     // 3. Calculate Averages
     return Object.keys(grouped).map(key => ({
         date: key,
-        value: parseFloat((grouped[key].sum / grouped[key].count).toFixed(1))
+        value: parseFloat((grouped[key].total / grouped[key].count).toFixed(1))
     }));
-};
-
-// --- ISOLATED CHART COMPONENT ---
-const ProgressChart = ({ data, color }) => {
-    if (!data || data.length === 0) return <div className="text-gray-500 text-xs text-center flex items-center justify-center h-full">No data recorded for this metric yet.</div>;
-    
-    // Dynamic Domain Calculation
-    const minVal = Math.min(...data.map(d => d.value));
-    const maxVal = Math.max(...data.map(d => d.value));
-    const padding = (maxVal - minVal) * 0.1 || 5;
-
-    return (
-        <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                    <XAxis dataKey="date" stroke="#666" fontSize={10} tickMargin={10} />
-                    <YAxis stroke="#666" fontSize={10} domain={[Math.max(0, Math.floor(minVal - padding)), Math.ceil(maxVal + padding)]} width={30} />
-                    <Tooltip 
-                        contentStyle={{ backgroundColor: '#0a0a0a', border: `1px solid ${color}`, color: '#fff', fontSize: '12px' }} 
-                        itemStyle={{ color: color }}
-                    />
-                    <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} connectNulls dot={{r:3, fill: color}} activeDot={{r:6}} />
-                </LineChart>
-            </ResponsiveContainer>
-        </div>
-    );
 };
 
 const Dashboard = () => {
@@ -116,7 +80,7 @@ const Dashboard = () => {
 
   // Analysis State
   const [graphMetric, setGraphMetric] = useState('bodyWeight');
-  const [graphRange, setGraphRange] = useState('daily');
+  const [graphRange, setGraphRange] = useState('daily'); // daily, weekly, monthly
 
   const [profileData, setProfileData] = useState({ name: '', phone: '' });
   const [isEditing, setIsEditing] = useState(false);
@@ -146,7 +110,7 @@ const Dashboard = () => {
 
   const onLogout = () => { dispatch(logout()); dispatch(reset()); navigate('/'); };
 
-  // --- CALENDAR ENGINE ---
+  // --- CALENDAR LOGIC ---
   const changeMonth = (offset) => {
       const newDate = new Date(currentMonth);
       newDate.setMonth(newDate.getMonth() + offset);
@@ -171,7 +135,10 @@ const Dashboard = () => {
           
           let intensity = 'bg-zinc-900 border-zinc-800 text-zinc-600'; 
           if (log) {
-              if (log.bodyWeight || log.note) intensity = 'bg-slate-800 border-slate-600 text-slate-300';
+              // Priority 1: Note or Weight exists (Blue-ish gray to show data exists)
+              if (log.bodyWeight || log.note) intensity = 'bg-slate-900 border-slate-700 text-slate-300';
+              
+              // Priority 2: Tasks (Green Overrides)
               if (log.tasks) {
                   const count = log.tasks.filter(t => t.completed).length;
                   if (count > 0 && count <= 2) intensity = 'bg-green-900/40 border-green-800 text-green-400';
@@ -183,8 +150,7 @@ const Dashboard = () => {
           const isToday = current.getTime() === today.getTime();
           const isBeforeJoin = current < joinDate;
 
-          // Allow clicking past dates even if no log exists
-          grid.push({ day: i, dateKey: dateStr, intensity, log, isFuture, isToday, disabled: isBeforeJoin });
+          grid.push({ day: i, dateKey: dateStr, intensity, log, isFuture, isToday, disabled: isBeforeJoin && !log });
       }
       return grid;
   };
@@ -225,16 +191,20 @@ const Dashboard = () => {
               date: selectedDate.dateKey, 
               tasks: modalData.tasks, 
               note: modalData.note,
+              // Send null if empty string
               bodyWeight: modalData.bodyWeight === '' ? null : Number(modalData.bodyWeight)
           };
           const res = await axios.post(`${BASE_URL}/api/activity`, payload, getAuthHeader());
+          
+          // Update local state instantly so graph reflects it
           setActivities(prev => ({ ...prev, [selectedDate.dateKey]: res.data }));
+          
           setIsLoading(false);
           setSelectedDate(null);
       } catch (error) { alert("Failed to save"); setIsLoading(false); }
   };
 
-  // --- ANALYSIS DATA ---
+  // --- ANALYSIS ---
   const graphData = useMemo(() => {
       return processGraphData(activities, graphMetric, graphRange);
   }, [activities, graphMetric, graphRange]);
@@ -246,7 +216,7 @@ const Dashboard = () => {
           const payload = { ...profileData, phone: rawPhone };
           await axios.put(`${BASE_URL}/api/users/profile`, payload, getAuthHeader());
           setUpdateStatus('success');
-          setTimeout(() => { setUpdateStatus('idle'); setIsEditing(false); }, 1500);
+          setTimeout(() => { setUpdateStatus('idle'); setIsEditing(false); }, 1000);
       } catch (error) { setUpdateStatus('idle'); }
   };
 
@@ -261,9 +231,9 @@ const Dashboard = () => {
       return diff > 0 ? diff : 0;
   };
 
-  // Count strictly present days
+  // Count attendance (dates with at least one completed task OR weight logged)
   const attendanceCount = Object.values(activities).filter(log => 
-      (log.tasks && log.tasks.some(t => t.completed)) || (log.bodyWeight && log.bodyWeight > 0)
+      (log.tasks && log.tasks.some(t => t.completed)) || log.bodyWeight
   ).length;
 
   return (
@@ -287,8 +257,8 @@ const Dashboard = () => {
         {activeTab === 'overview' && (
             <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} className="space-y-4">
                 
-                {/* SUBSCRIPTION CARD (Compact) */}
-                <div className="bg-[#111] p-3 rounded-xl border border-white/5 flex justify-between items-center relative overflow-hidden shadow-lg">
+                {/* SUBSCRIPTION CARD */}
+                <div className="bg-[#111] px-5 py-4 rounded-xl border border-white/5 flex justify-between items-center relative overflow-hidden shadow-lg">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-gymGold/5 rounded-full blur-xl"></div>
                     <div className="relative z-10 w-full">
                         <div className="flex justify-between items-center">
@@ -298,15 +268,12 @@ const Dashboard = () => {
                             </span>
                         </div>
                         {localUser?.subscription?.plan ? (
-                            <div className="mt-1">
-                                <h2 className="text-lg font-black text-white">{localUser.subscription.plan}</h2>
-                                <div className="flex justify-between items-center mt-1 pt-1 border-t border-white/10">
-                                    <div className="text-[10px] text-gray-400 font-mono">
-                                        Exp: <span className="text-white">{new Date(localUser.subscription.endDate).toLocaleDateString('en-GB')}</span>
-                                    </div>
-                                    <div className="text-[10px] font-bold text-gymGold">
-                                        {calculateDaysLeft()} Days Left
-                                    </div>
+                            <div>
+                                <h2 className="text-xl font-black text-white mt-1">{localUser.subscription.plan}</h2>
+                                <div className="text-xs flex gap-3 mt-2 font-mono items-center">
+                                    <span className="text-gray-400">Exp: {new Date(localUser.subscription.endDate).toLocaleDateString('en-GB')}</span>
+                                    <span className="text-gray-600">|</span>
+                                    <span className="text-gymGold font-bold">{calculateDaysLeft()} Days Left</span>
                                 </div>
                             </div>
                         ) : <span className="text-gray-400 text-sm font-bold block mt-2">No active plan</span>}
@@ -330,7 +297,7 @@ const Dashboard = () => {
                                     onClick={() => openDay(dayObj)}
                                     disabled={dayObj.disabled}
                                     className={`
-                                        w-9 h-9 mx-auto rounded-md flex items-center justify-center text-[10px] font-bold transition-all border relative
+                                        aspect-square rounded-md flex items-center justify-center text-[10px] font-bold transition-all border relative
                                         ${dayObj.disabled ? 'opacity-20 cursor-not-allowed bg-black border-transparent text-gray-600' : dayObj.intensity}
                                         ${!dayObj.disabled && 'hover:scale-110 active:scale-95 cursor-pointer'}
                                         ${dayObj.isToday ? 'ring-1 ring-gymGold ring-offset-1 ring-offset-black' : ''}
@@ -345,48 +312,63 @@ const Dashboard = () => {
             </motion.div>
         )}
 
-        {/* --- ANALYSE TAB (UPDATED STYLING) --- */}
+        {/* --- ANALYSE TAB (UPDATED) --- */}
         {activeTab === 'analyse' && (
             <motion.div initial={{opacity:0}} animate={{opacity:1}} className="bg-[#111] p-6 rounded-xl border border-white/5 space-y-6 shadow-lg">
                 <div className="flex flex-col gap-4">
-                    <h2 className="text-lg font-bold">Progress Analysis</h2>
+                    <h2 className="text-lg font-bold">Progress Graph</h2>
                     
+                    {/* CUSTOM DROPDOWNS */}
                     <div className="flex gap-2">
-                        {/* Styled Select 1 */}
-                        <div className="relative flex-1">
-                            <select 
-                                value={graphMetric} 
-                                onChange={(e) => setGraphMetric(e.target.value)} 
-                                className="w-full bg-[#1c1c1c] text-white text-xs p-3 rounded-lg border border-gray-700 outline-none appearance-none focus:border-gymGold"
-                            >
-                                <option value="bodyWeight">Body Weight (kg)</option>
-                                <option value="Bench Press">Bench Press</option>
-                                <option value="Squat">Squat</option>
-                                <option value="Deadlift">Deadlift</option>
-                            </select>
-                            <span className="absolute right-3 top-3 text-gray-500 pointer-events-none text-xs">▼</span>
-                        </div>
+                        <select 
+                            value={graphMetric} 
+                            onChange={(e) => setGraphMetric(e.target.value)} 
+                            className="bg-black text-white text-xs p-2 rounded border border-gymGold outline-none flex-1 focus:ring-1 focus:ring-gymGold"
+                        >
+                            <option value="bodyWeight">Body Weight</option>
+                            <option value="Bench Press">Bench Press</option>
+                            <option value="Squat">Squat</option>
+                            <option value="Deadlift">Deadlift</option>
+                        </select>
 
-                        {/* Styled Select 2 */}
-                        <div className="relative w-28">
-                            <select 
-                                value={graphRange} 
-                                onChange={(e) => setGraphRange(e.target.value)} 
-                                className="w-full bg-[#1c1c1c] text-white text-xs p-3 rounded-lg border border-gray-700 outline-none appearance-none focus:border-gymGold"
-                            >
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly Avg</option>
-                                <option value="monthly">Monthly Avg</option>
-                            </select>
-                            <span className="absolute right-3 top-3 text-gray-500 pointer-events-none text-xs">▼</span>
-                        </div>
+                        <select 
+                            value={graphRange} 
+                            onChange={(e) => setGraphRange(e.target.value)} 
+                            className="bg-black text-white text-xs p-2 rounded border border-gray-700 outline-none w-24 focus:border-gymGold"
+                        >
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly Avg</option>
+                            <option value="monthly">Monthly Avg</option>
+                        </select>
                     </div>
                 </div>
                 
-                {/* Graph Container */}
-                <div className="bg-[#0a0a0a] rounded-lg border border-white/5 p-2">
-                    <ProgressChart data={graphData} color="#FFD700" />
+                <div className="h-64 w-full bg-[#0a0a0a] rounded-lg border border-white/5 p-2">
+                    {graphData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={graphData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                                <XAxis dataKey="date" stroke="#666" fontSize={10} tickMargin={10} />
+                                <YAxis stroke="#666" fontSize={10} domain={['auto', 'auto']} width={30} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#000', border: '1px solid #FFD700', color: '#fff', fontSize: '12px' }} 
+                                    itemStyle={{ color: '#FFD700' }}
+                                />
+                                <Line type="monotone" dataKey="value" stroke="#FFD700" strokeWidth={3} connectNulls dot={{r:3, fill:'#FFD700'}} activeDot={{r:6}} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                            <span className="text-2xl mb-2">📉</span>
+                            <p className="text-xs">No data recorded yet.</p>
+                            <button onClick={() => setActiveTab('overview')} className="mt-2 text-gymGold text-xs underline">Log Weight</button>
+                        </div>
+                    )}
                 </div>
+                
+                <p className="text-[10px] text-gray-500 text-center italic">
+                    Showing {graphRange} progress for {graphMetric === 'bodyWeight' ? 'body weight' : graphMetric}.
+                </p>
             </motion.div>
         )}
 
@@ -426,7 +408,7 @@ const Dashboard = () => {
             </motion.div>
         )}
 
-        {/* --- MODAL (CENTERED POPUP) --- */}
+        {/* --- MODAL (CENTERED) --- */}
         <AnimatePresence>
             {selectedDate && modalData && (
                 <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -445,7 +427,6 @@ const Dashboard = () => {
                         </div>
 
                         <div className="p-5 overflow-y-auto custom-scrollbar">
-                            {/* WEIGHT INPUT */}
                             <div className="mb-6 bg-black/30 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
                                 <label className="text-xs font-bold text-gray-400">Body Weight (kg)</label>
                                 <input 
@@ -457,7 +438,6 @@ const Dashboard = () => {
                                 />
                             </div>
 
-                            {/* TASKS */}
                             <div className="space-y-3 mb-6">
                                 <div className="flex justify-between items-end border-b border-gray-800 pb-2 mb-2">
                                     <h4 className="text-xs font-bold text-gymGold uppercase">Exercises</h4>
@@ -466,11 +446,11 @@ const Dashboard = () => {
                                 {modalData.tasks.map((task, i) => (
                                     <div key={i} className={`flex flex-col gap-2 p-3 rounded-xl border transition-all ${task.completed ? 'bg-green-900/10 border-green-900/50' : 'bg-black/40 border-gray-800'}`}>
                                         <div className="flex items-center gap-3">
-                                            {/* Allow checking checkboxes ALWAYS unless future */}
+                                            {/* CHECKBOX: Enabled if NOT Future */}
                                             <div 
                                                 onClick={() => !selectedDate.isFuture && updateTask(i, 'completed', !task.completed)} 
                                                 className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 
-                                                    ${selectedDate.isFuture ? 'cursor-not-allowed opacity-30 border-gray-600' : 'cursor-pointer'} 
+                                                    ${selectedDate.isFuture ? 'cursor-not-allowed opacity-30 border-gray-600' : 'cursor-pointer'}
                                                     ${task.completed ? 'bg-green-500 border-green-500' : 'border-gray-600 hover:border-white'}`}
                                             >
                                                 {task.completed && <span className="text-black text-xs font-bold">✓</span>}
