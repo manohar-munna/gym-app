@@ -54,6 +54,40 @@ const updateUserByAdmin = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// @desc    Update User Profile (Self)
+// @route   PUT /api/users/profile
+const updateUserProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+
+        if (user) {
+            user.name = req.body.name || user.name;
+            if (req.body.phone) {
+                user.profile = { ...user.profile, phone: req.body.phone };
+            }
+            // Add other fields (weight, height) here if needed later
+
+            const updatedUser = await user.save();
+
+            res.json({
+                _id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                isAdmin: updatedUser.isAdmin,
+                token: generateToken(updatedUser._id), // Refresh token
+                subscription: updatedUser.subscription,
+                profile: updatedUser.profile
+            });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
 // @desc    Delete user
 // @route   DELETE /api/users/:id
 const deleteUser = async (req, res) => {
@@ -150,4 +184,4 @@ const getAllUsers = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser, getAllUsers, deleteUser, updateUserByAdmin };
+module.exports = { registerUser, loginUser, getAllUsers, deleteUser, updateUserByAdmin, updateUserProfile };
