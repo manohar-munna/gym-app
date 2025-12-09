@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { logout, reset } from '../features/auth/authSlice';
-import { getUsers, deleteUser, resetAdmin } from '../features/auth/adminReducer';
+import { getUsers, deleteUser, updateUser } from '../features/auth/adminReducer'; // Added updateUser
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -12,17 +12,22 @@ const AdminDashboard = () => {
   const { users, isLoading } = useSelector((state) => state.admin);
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [filter, setFilter] = useState('all'); // all, Strength, Cardio, inactive
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
 
-  // --- 1. CACHING LOGIC ---
+  // Form State
+  const [formData, setFormData] = useState({
+    plan: 'Strength',
+    startDate: '',
+    endDate: '',
+    phone: ''
+  });
+
   useEffect(() => {
-    if (activeTab === 'members') {
-      // Only fetch if we don't have users yet (Prevents re-fetching)
-      if (users.length === 0) {
-        dispatch(getUsers());
-      }
+    if (activeTab === 'members' && users.length === 0) {
+      dispatch(getUsers());
     }
-    // We REMOVED the cleanup return () => dispatch(resetAdmin()) 
-    // This ensures data stays in Redux store when you switch tabs
   }, [activeTab, dispatch, users.length]);
 
   const onLogout = () => {
@@ -37,43 +42,65 @@ const AdminDashboard = () => {
     }
   };
 
-  // --- 2. WHATSAPP LOGIC ---
-  const sendWhatsApp = (member) => {
-    // Check if phone exists (fallback to placeholder if missing)
-    const phone = member.profile?.phone || member.phone || ''; 
-    
-    if (!phone) {
-      alert("This user has not added a phone number.");
-      return;
-    }
-
-    const planName = member.subscription?.plan || "Gym Membership";
-    const expiryDate = member.subscription?.endDate 
-      ? new Date(member.subscription.endDate).toLocaleDateString() 
-      : "soon";
-
-    // Pre-filled Message
-    const message = `Hello ${member.name}, this is a reminder from Swamy Gym. Your ${planName} is set to expire on ${expiryDate}. Please renew to continue your training! 💪`;
-    
-    // Create Link
-    const url = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
-    
-    // Open in new tab
-    window.open(url, '_blank');
+  // --- MODAL & DATE LOGIC ---
+  const handleEditClick = (user) => {
+    setEditingUser(user);
+    setFormData({
+        plan: user.subscription?.plan || 'Strength',
+        startDate: user.subscription?.startDate ? user.subscription.startDate.split('T')[0] : '',
+        endDate: user.subscription?.endDate ? user.subscription.endDate.split('T')[0] : '',
+        phone: user.profile?.phone || ''
+    });
+    setShowModal(true);
   };
 
-  // --- HELPER: Calculate Days Left ---
+  const handleDateChange = (e) => {
+      const start = new Date(e.target.value);
+      setFormData(prev => ({ ...prev, startDate: e.target.value }));
+
+      // Auto-calculate +30 Days
+      if (!isNaN(start.getTime())) {
+          const end = new Date(start);
+          end.setDate(end.getDate() + 30); // Add 30 Days
+          setFormData(prev => ({ 
+              ...prev, 
+              startDate: e.target.value,
+              endDate: end.toISOString().split('T')[0] 
+          }));
+      }
+  };
+
+  const handleSave = () => {
+      dispatch(updateUser({ id: editingUser._id, userData: formData }));
+      setShowModal(false);
+  };
+
+  // --- FILTERING LOGIC ---
+  const filteredUsers = users.filter(user => {
+    if (filter === 'all') return true;
+    if (filter === 'inactive') return !user.subscription || !user.subscription.plan;
+    return user.subscription?.plan === filter;
+  });
+
+  // --- WHATSAPP ---
+  const sendWhatsApp = (member) => {
+    const phone = member.profile?.phone || ''; 
+    if (!phone) return alert("Please add a phone number first (Click Edit).");
+    
+    const planName = member.subscription?.plan || "Membership";
+    const expiryDate = member.subscription?.endDate ? new Date(member.subscription.endDate).toLocaleDateString() : "soon";
+    const message = `Hello ${member.name}, this is Swamy Gym. Your ${planName} expires on ${expiryDate}. Please renew!`;
+    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   const getDaysLeft = (endDate) => {
     if (!endDate) return -1;
-    const end = new Date(endDate);
-    const today = new Date();
-    const diffTime = end - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    const diff = new Date(endDate) - new Date();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
   return (
-    <div className="min-h-screen bg-gymBlack flex text-white font-sans">
+    <div className="min-h-screen bg-gymBlack flex text-white font-sans relative">
       
       {/* SIDEBAR */}
       <div className="w-64 bg-[#111] border-r border-gray-800 flex flex-col fixed h-full z-20">
@@ -83,136 +110,100 @@ const AdminDashboard = () => {
           </h2>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <button onClick={() => setActiveTab('overview')} className={`w-full text-left px-4 py-3 rounded transition-colors ${activeTab === 'overview' ? 'bg-gymGold text-black font-bold' : 'text-gray-400 hover:bg-gray-800'}`}>📊 Overview</button>
-          <button onClick={() => setActiveTab('members')} className={`w-full text-left px-4 py-3 rounded transition-colors ${activeTab === 'members' ? 'bg-gymGold text-black font-bold' : 'text-gray-400 hover:bg-gray-800'}`}>👥 Manage Members</button>
+          <button onClick={() => setActiveTab('overview')} className={`w-full text-left px-4 py-3 rounded ${activeTab === 'overview' ? 'bg-gymGold text-black font-bold' : 'text-gray-400 hover:bg-gray-800'}`}>📊 Overview</button>
+          <button onClick={() => setActiveTab('members')} className={`w-full text-left px-4 py-3 rounded ${activeTab === 'members' ? 'bg-gymGold text-black font-bold' : 'text-gray-400 hover:bg-gray-800'}`}>👥 Manage Members</button>
         </nav>
         <div className="p-4 border-t border-gray-800">
-          <button onClick={onLogout} className="w-full py-2 bg-red-900/50 text-red-500 hover:bg-red-900 rounded font-bold transition-colors">Logout</button>
+          <button onClick={onLogout} className="w-full py-2 bg-red-900/50 text-red-500 hover:bg-red-900 rounded font-bold">Logout</button>
         </div>
       </div>
 
       {/* MAIN CONTENT */}
       <div className="flex-1 ml-64 p-8">
         
-        {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <h1 className="text-3xl font-bold uppercase">{activeTab === 'overview' ? 'Dashboard Overview' : 'Member Management'}</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm text-gray-400">Admin</p>
-              <p className="font-bold text-gymGold">{user && user.name}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* VIEW: OVERVIEW */}
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-[#111] p-6 rounded border border-gray-800">
-              <p className="text-gray-400 text-sm uppercase">Total Members</p>
-              <h3 className="text-4xl font-black text-white mt-2">{users.length}</h3>
-              <p className="text-xs text-gray-500 mt-2">Cached Data</p>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: MEMBERS (Updated Table) */}
+        {/* VIEW: MEMBERS */}
         {activeTab === 'members' && (
-          <div className="bg-[#111] rounded border border-gray-800 overflow-hidden">
+          <div className="bg-[#111] rounded border border-gray-800 overflow-hidden min-h-[80vh]">
             
-            {/* Toolbar */}
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#0a0a0a]">
-              <h3 className="text-xl font-bold">All Members</h3>
-              <div className="flex gap-2">
-                <button onClick={() => dispatch(getUsers())} className="text-sm text-gymGold border border-gymGold px-3 py-1 hover:bg-gymGold hover:text-black transition">
-                  ↻ Refresh
-                </button>
+            {/* Filter Tabs */}
+            <div className="p-6 border-b border-gray-800 bg-[#0a0a0a] flex flex-wrap gap-4 items-center justify-between">
+              <h3 className="text-xl font-bold">Manage Members</h3>
+              
+              <div className="flex space-x-2 bg-gray-900 p-1 rounded">
+                {['all', 'Strength', 'Strength+Cardio', 'inactive'].map((f) => (
+                    <button 
+                        key={f}
+                        onClick={() => setFilter(f)}
+                        className={`px-4 py-1 text-sm rounded uppercase font-bold transition-all ${filter === f ? 'bg-gymGold text-black' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        {f === 'inactive' ? 'No Plan' : f}
+                    </button>
+                ))}
               </div>
             </div>
             
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-gray-400 whitespace-nowrap">
                 <thead className="bg-black text-gray-200 uppercase text-xs font-bold tracking-wider">
                   <tr>
                     <th className="p-4">Name</th>
-                    <th className="p-4">Plan</th>
-                    <th className="p-4">Start Date</th>
-                    <th className="p-4">Expiry Date</th>
+                    <th className="p-4">Plan Details</th>
+                    <th className="p-4">Validity</th>
                     <th className="p-4">Status</th>
-                    <th className="p-4 text-center">Notify</th>
-                    <th className="p-4">Action</th>
+                    <th className="p-4">WhatsApp</th>
+                    <th className="p-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((member) => {
-                     // Subscription Logic (Handle missing data safely)
+                  {filteredUsers.map((member) => {
                      const hasPlan = member.subscription && member.subscription.plan;
                      const daysLeft = hasPlan ? getDaysLeft(member.subscription.endDate) : -1;
                      
                      return (
-                      <tr key={member._id} className="border-b border-gray-800 hover:bg-gray-900/50 transition-colors">
-                        
-                        {/* Name & Email */}
+                      <tr key={member._id} className="border-b border-gray-800 hover:bg-gray-900/50">
                         <td className="p-4">
                           <div className="font-bold text-white">{member.name}</div>
                           <div className="text-xs text-gray-500">{member.email}</div>
+                          <div className="text-xs text-gymGold mt-1">{member.profile?.phone || "No Phone"}</div>
                         </td>
 
-                        {/* Plan */}
                         <td className="p-4">
                           {hasPlan ? (
-                             <span className="text-white font-bold">{member.subscription.plan}</span>
-                          ) : (
-                             <span className="text-gray-600 italic">No Plan</span>
-                          )}
+                             <div>
+                                 <span className="text-white font-bold block">{member.subscription.plan}</span>
+                                 <span className="text-xs text-gray-500">
+                                    {member.subscription.plan === 'Strength' ? '₹1200 / month' : '₹1500 / month'}
+                                 </span>
+                             </div>
+                          ) : <span className="text-gray-600 italic">No Plan Assigned</span>}
                         </td>
 
-                        {/* Start Date */}
                         <td className="p-4">
-                           {hasPlan ? new Date(member.subscription.startDate).toLocaleDateString() : '-'}
+                           {hasPlan ? (
+                               <div className="text-sm">
+                                   <div className="text-green-500">Start: {new Date(member.subscription.startDate).toLocaleDateString()}</div>
+                                   <div className="text-red-400">End: {new Date(member.subscription.endDate).toLocaleDateString()}</div>
+                               </div>
+                           ) : '-'}
                         </td>
 
-                        {/* Expiry Date */}
                         <td className="p-4">
-                           {hasPlan ? new Date(member.subscription.endDate).toLocaleDateString() : '-'}
+                            {member.isAdmin ? <span className="badge bg-blue-900 text-blue-300">ADMIN</span> 
+                            : !hasPlan ? <span className="badge bg-gray-800 text-gray-400">INACTIVE</span>
+                            : daysLeft < 0 ? <span className="badge bg-red-900 text-red-300">EXPIRED</span>
+                            : <span className="badge bg-green-900 text-green-300">ACTIVE ({daysLeft} days)</span>}
                         </td>
 
-                        {/* Status Widget */}
                         <td className="p-4">
-                          {member.isAdmin ? (
-                             <span className="px-2 py-1 bg-blue-900 text-blue-300 rounded text-xs font-bold">ADMIN</span>
-                          ) : !hasPlan ? (
-                             <span className="px-2 py-1 bg-gray-800 text-gray-400 rounded text-xs font-bold">INACTIVE</span>
-                          ) : daysLeft < 0 ? (
-                             <span className="px-2 py-1 bg-red-900 text-red-300 rounded text-xs font-bold">EXPIRED</span>
-                          ) : daysLeft < 5 ? (
-                             <span className="px-2 py-1 bg-orange-900 text-orange-300 rounded text-xs font-bold">EXPIRING SOON</span>
-                          ) : (
-                             <span className="px-2 py-1 bg-green-900 text-green-300 rounded text-xs font-bold">ACTIVE</span>
-                          )}
-                        </td>
-
-                        {/* WhatsApp Button */}
-                        <td className="p-4 text-center">
-                          <button 
-                            onClick={() => sendWhatsApp(member)}
-                            className="text-green-500 hover:text-green-400 transition-colors text-xl"
-                            title="Send WhatsApp Reminder"
-                          >
+                          <button onClick={() => sendWhatsApp(member)} className="text-green-500 hover:text-green-400 text-xl" title="Chat">
                             <i className="fa-brands fa-whatsapp"></i> 💬
                           </button>
                         </td>
 
-                        {/* Actions */}
                         <td className="p-4">
-                          {!member.isAdmin && (
-                            <button 
-                              onClick={() => handleDelete(member._id)}
-                              className="text-red-500 hover:text-red-400 text-sm font-bold ml-2"
-                            >
-                              🗑️
-                            </button>
-                          )}
+                            <button onClick={() => handleEditClick(member)} className="text-gymGold font-bold mr-4 hover:underline">Edit</button>
+                            {!member.isAdmin && <button onClick={() => handleDelete(member._id)} className="text-red-500 font-bold hover:underline">Delete</button>}
                         </td>
                       </tr>
                      );
@@ -220,11 +211,75 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
             </div>
-
-            {users.length === 0 && !isLoading && <div className="p-8 text-center">No members found.</div>}
           </div>
         )}
       </div>
+
+      {/* --- EDIT USER MODAL --- */}
+      {showModal && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+              <div className="bg-[#1c1c1c] p-8 rounded-lg w-full max-w-md border border-gymGold shadow-2xl relative">
+                  <h2 className="text-2xl font-bold mb-6 text-white uppercase">Edit Member</h2>
+                  
+                  <div className="space-y-4">
+                      {/* Phone */}
+                      <div>
+                          <label className="block text-gray-400 text-sm mb-1">WhatsApp Number</label>
+                          <input 
+                              type="number" 
+                              value={formData.phone} 
+                              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                              className="w-full bg-black border border-gray-700 p-2 rounded text-white focus:border-gymGold outline-none"
+                              placeholder="9876543210"
+                          />
+                      </div>
+
+                      {/* Plan Selector */}
+                      <div>
+                          <label className="block text-gray-400 text-sm mb-1">Select Plan</label>
+                          <select 
+                              value={formData.plan} 
+                              onChange={(e) => setFormData({...formData, plan: e.target.value})}
+                              className="w-full bg-black border border-gray-700 p-2 rounded text-white focus:border-gymGold outline-none"
+                          >
+                              <option value="Strength">Strength Training (₹1200)</option>
+                              <option value="Strength+Cardio">Strength + Cardio (₹1500)</option>
+                          </select>
+                      </div>
+
+                      {/* Start Date (Auto-calculates End Date) */}
+                      <div>
+                          <label className="block text-gray-400 text-sm mb-1">Payment Date (Start)</label>
+                          <input 
+                              type="date" 
+                              value={formData.startDate} 
+                              onChange={handleDateChange}
+                              className="w-full bg-black border border-gray-700 p-2 rounded text-white focus:border-gymGold outline-none"
+                          />
+                      </div>
+
+                      {/* End Date (Read Only) */}
+                      <div>
+                          <label className="block text-gray-400 text-sm mb-1">Valid Till (Auto +30 Days)</label>
+                          <input 
+                              type="date" 
+                              value={formData.endDate} 
+                              readOnly
+                              className="w-full bg-gray-900 border border-gray-800 p-2 rounded text-gray-500 cursor-not-allowed"
+                          />
+                      </div>
+                  </div>
+
+                  <div className="flex gap-4 mt-8">
+                      <button onClick={handleSave} className="flex-1 bg-gymGold text-black font-bold py-3 uppercase tracking-widest hover:bg-white transition">Save Changes</button>
+                      <button onClick={() => setShowModal(false)} className="flex-1 border border-gray-600 text-gray-400 font-bold py-3 uppercase tracking-widest hover:bg-gray-800 transition">Cancel</button>
+                  </div>
+              </div>
+          </div>
+      )}
+      
+      {/* Simple style for badges */}
+      <style>{`.badge { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }`}</style>
     </div>
   );
 };
