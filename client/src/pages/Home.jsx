@@ -243,7 +243,7 @@ const Home = () => {
                 </p>
                 <p className="flex items-center gap-4">
                   <span className="text-gymGold text-xl">📞</span> 
-                  <span>+91 99087 70019</span>
+                  <span>+91 12345 12345</span>
                 </p>
                 <p className="flex items-center gap-4">
                   <span className="text-gymGold text-xl">✉️</span> 
